@@ -1,18 +1,6 @@
-package tictactoe_pkg;
-    typedef struct packed {
-        logic [8:0] x_bitboard;         // board state
-        logic [8:0] o_bitboard;
-        logic       player_to_move;
-        logic [8:0] remaining_moves; 
-        logic signed [1:0] best_score;  // Current minimax evaluation (-1, 0, +1)
-        logic [3:0] bestmove_index; 
-        logic [3:0] parent_move_index;
-    } node_frame_t;
-endpackage
-
 import tictactoe_pkg::*;
 
-module tictactoe (
+module tictactoe_control (
     input  logic       clk,
     input  logic       rst,
     input  logic       start,
@@ -238,12 +226,12 @@ module tictactoe (
         end
     end
 
-    mask root_mask_inst ( 
+    board_mask root_mask_inst ( 
         .x_bitboard(x_bitboard), .o_bitboard(o_bitboard),
         .occupied(), .legal_moves(root_legal_moves), .invalid()
     );  
 
-    mask child_mask_inst ( 
+    board_mask child_mask_inst ( 
         .x_bitboard(latched_next_x_bitboard), .o_bitboard(latched_next_o_bitboard),
         .occupied(), .legal_moves(child_legal_moves), .invalid()
     );  
@@ -263,143 +251,17 @@ module tictactoe (
         .move_bit(first_child_move_bit), .move_index(first_child_move_index), .valid()
     );
 
-    terminal_state terminal_state_inst (
+    game_terminal_check terminal_state_inst (
         .x_bitboard(latched_next_x_bitboard), .o_bitboard(latched_next_o_bitboard),
         .x_wins(x_wins), .o_wins(o_wins), .is_draw(is_draw), .is_terminal(is_terminal)
     );
 
-    search_stack search_stack_inst (
+    stack search_stack_inst (
         .clk(clk), .rst(rst),
         .push(stack_push), .pop(stack_pop), .update(stack_update),
-        .pushData(stack_push_data), .updateData(stack_update_data),
-        .topData(topData), .stack_pointer(stack_pointer),
+        .push_data(stack_push_data), .update_data(stack_update_data),
+        .top_data(topData), .stack_pointer(stack_pointer),
         .full(stack_full), .empty(stack_empty)
     );
 
-endmodule
-
-module mask (
-    input logic [8:0] x_bitboard,
-    input logic [8:0] o_bitboard,
-    output logic [8:0] occupied,
-    output logic [8:0] legal_moves,
-    output logic invalid
-);
-    assign occupied = x_bitboard | o_bitboard;
-    assign legal_moves = ~occupied;
-    assign invalid = |(x_bitboard & o_bitboard);
-endmodule
-
-module win_check (
-    input logic [8:0] board,
-    output logic win
-);
-    localparam logic [8:0] R1 = 9'b111000000;
-    localparam logic [8:0] R2 = 9'b000111000;
-    localparam logic [8:0] R3 = 9'b000000111;
-
-    localparam logic [8:0] C1 = 9'b100100100;
-    localparam logic [8:0] C2 = 9'b010010010;
-    localparam logic [8:0] C3 = 9'b001001001;
-
-    localparam logic [8:0] D1 = 9'b100010001;
-    localparam logic [8:0] D2 = 9'b001010100;
-
-    assign win = 
-        ((board & R1) == R1) ||
-        ((board & R2) == R2) ||
-        ((board & R3) == R3) ||
-        ((board & C1) == C1) ||
-        ((board & C2) == C2) ||
-        ((board & C3) == C3) ||
-        ((board & D1) == D1) ||
-        ((board & D2) == D2);
-endmodule
-
-module terminal_state (
-    input  logic [8:0] x_bitboard,
-    input  logic [8:0] o_bitboard,
-    output logic       x_wins,
-    output logic       o_wins,
-    output logic       is_draw,
-    output logic       is_terminal
-);
-    logic [8:0] occupied;
-
-    win_check x_win_inst (.board(x_bitboard), .win(x_wins));
-    win_check o_win_inst (.board(o_bitboard), .win(o_wins));
-    mask mask_inst (.x_bitboard(x_bitboard), .o_bitboard(o_bitboard), .occupied(occupied), .legal_moves(), .invalid());
-
-    assign is_draw = (~(x_wins | o_wins) && (occupied == 9'b111111111));
-    assign is_terminal = x_wins | o_wins | is_draw;
-endmodule
-
-module move_extractor (
-    input  logic [8:0] remaining_moves,
-    output logic [8:0] move_bit,      
-    output logic [3:0] move_index,    
-    output logic       valid         
-);
-    logic [8:0] lsb_bit;
-    assign lsb_bit = remaining_moves & (~remaining_moves + 1'b1);
-
-
-    always_comb begin
-        move_bit   = lsb_bit;
-        valid = |remaining_moves;
-
-        case (lsb_bit)
-                9'b000000001: move_index = 4'd0;
-                9'b000000010: move_index = 4'd1;
-                9'b000000100: move_index = 4'd2;
-                9'b000001000: move_index = 4'd3;
-                9'b000010000: move_index = 4'd4;
-                9'b000100000: move_index = 4'd5;
-                9'b001000000: move_index = 4'd6;
-                9'b010000000: move_index = 4'd7;
-                9'b100000000: move_index = 4'd8;
-                default:      move_index = 4'd0;
-        endcase
-    end
-endmodule
-
-module search_stack #(
-    parameter int MAX_DEPTH = 10
-)(
-    input  logic        clk,
-    input  logic        rst,
-    input  logic        push,
-    input  logic        pop,
-    input  logic        update,       
-    input  node_frame_t  pushData,
-    input  node_frame_t  updateData,   
-    output node_frame_t  topData,
-    output logic [3:0]  stack_pointer, 
-    output logic        full,
-    output logic        empty
-);
-    import tictactoe_pkg::*;
-
-    node_frame_t stack_mem [0:MAX_DEPTH-1];
-
-    assign empty = (stack_pointer == 4'd0);
-    assign full  = (stack_pointer == MAX_DEPTH);
-    assign topData = (empty) ? '0 : stack_mem[stack_pointer - 1];
-
-    always_ff @(posedge clk) begin
-        if (rst) begin
-            stack_pointer <= '0;
-        end else begin
-            if (push && !pop && !update && !full) begin
-                stack_mem[stack_pointer] <= pushData;
-                stack_pointer            <= stack_pointer + 1;
-            end 
-            else if (pop && !push && !update && !empty) begin
-                stack_pointer            <= stack_pointer - 1;
-            end 
-            else if (update && !push && !pop && !empty) begin
-                stack_mem[stack_pointer - 1] <= updateData;
-            end
-        end
-    end
 endmodule
