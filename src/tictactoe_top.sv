@@ -44,34 +44,34 @@ module tictactoe_top #(
         .tx_done (tx_done)
     );
 
-    // ttt search
-    logic ttt_rst_local;
-    logic ttt_rst;
+    // tictactoe search
+    logic tictactoe_rst_local;
+    logic tictactoe_rst;
 
-    assign ttt_rst = rst | ttt_rst_local;
+    assign tictactoe_rst = rst | tictactoe_rst_local;
 
     logic [8:0] x_bitboard;
     logic [8:0] o_bitboard;
     logic       max;
 
-    logic       ttt_start;
-    logic       ttt_done;
-    logic       ttt_busy;
+    logic       tictactoe_start;
+    logic       tictactoe_done;
+    logic       tictactoe_busy;
 
     logic [3:0] best_move_index;
     logic signed [1:0] best_score;
 
-    tictactoe tictactoe_inst (
+    tictactoe_control tictactoe_inst (
         .clk             (clk),
-        .rst             (ttt_rst),
-        .start           (ttt_start),
+        .rst             (tictactoe_rst),
+        .start           (tictactoe_start),
 
         .x_bitboard       (x_bitboard),
         .o_bitboard       (o_bitboard),
         .max             (max),
 
-        .done            (ttt_done),
-        .busy            (ttt_busy),
+        .done            (tictactoe_done),
+        .busy            (tictactoe_busy),
         .best_move_index (best_move_index),
         .best_score      (best_score)
     );
@@ -99,7 +99,6 @@ module tictactoe_top #(
     logic [$clog2(TIMEOUT_CYCLES)-1:0] timeout_count;
 
     //Controller
-
     always_ff @(posedge clk) begin
         if (rst) begin
             state            <= RX_BYTE0;
@@ -111,16 +110,16 @@ module tictactoe_top #(
             rx_byte0_reg     <= '0;
             rx_byte1_reg     <= '0;
 
-            ttt_start        <= 1'b0;
-            ttt_rst_local    <= 1'b0;
+            tictactoe_start        <= 1'b0;
+            tictactoe_rst_local    <= 1'b0;
             reset_hold_count <= '0;
 
             tx_start         <= 1'b0;
             tx_data          <= '0;
             timeout_count    <= '0;
         end else begin
-            ttt_start     <= 1'b0;
-            ttt_rst_local <= 1'b0;
+            tictactoe_start     <= 1'b0;
+            tictactoe_rst_local <= 1'b0;
             tx_start      <= 1'b0;
 
             if (state == RX_BYTE0 || state == RX_BYTE1 || state == RX_BYTE2) begin
@@ -173,8 +172,7 @@ module tictactoe_top #(
 
 
                 RESET_ENGINE: begin
-
-                    ttt_rst_local <= 1'b1;
+                    tictactoe_rst_local <= 1'b1;
 
                     if (reset_hold_count == 2'd1) begin
                         reset_hold_count <= '0;
@@ -186,15 +184,14 @@ module tictactoe_top #(
                 end
 
                 RUN_SEARCH: begin
-
-                    ttt_start <= 1'b1;
+                    tictactoe_start <= 1'b1;
 
                     state <= WAIT_SEARCH_DONE;
 
                 end
 
                 WAIT_SEARCH_DONE: begin
-                    if (ttt_done) begin
+                    if (tictactoe_done) begin
                         tx_data <= {
                             2'b00,
                             best_score,
