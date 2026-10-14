@@ -4,7 +4,9 @@ module uart_rx #(
 )(
     input  logic       clk,
     input  logic       rst,
+
     input  logic       rx_pin,
+
     output logic [7:0] rx_byte, 
     output logic       rx_valid, 
     output logic       rx_busy 
@@ -35,8 +37,8 @@ module uart_rx #(
     state_t state;
 
     logic [$clog2(CLKS_PER_BIT)-1:0] clk_count;
-    logic [2:0]                      bit_index;
-    logic [7:0]                      rx_shift;
+    logic [2:0] bit_index;
+    logic [7:0] rx_shift;
 
     assign rx_busy = (state != IDLE);
 
